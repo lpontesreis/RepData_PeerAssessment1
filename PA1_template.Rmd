@@ -7,19 +7,78 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r setup}
+require(knitr)
+#include working directory so we do not need to reset in every interaction
+opts_knit$set(root.dir = 'C:/DataScience')
+```
+```{r}
+#read file from working directory
+act <- read.csv(unz("repdata-data-activity.zip", "activity.csv"))
+# histogram of the total number of steps taken each day. Remember to aggregate the number of steps per day
+hist(tapply(act$steps, act$date, FUN = sum), main="Number of steps", xlab="Steps", las=1, breaks = 10)
 
+```
 
 
 ## What is mean total number of steps taken per day?
 
-
+```{r}
+# Please notice that due to the large amount of zeros, median will be zero or NA for all dates. 
+# Alternative is to exclude zeros (third and fourth cases below)
+tapply(act$steps, act$date, FUN = mean, na.rm = TRUE)
+tapply(act$steps, act$date, FUN = median, na.rm = TRUE)
+tapply(act$steps, act$date, FUN = function (x) {mean(x[x>0], na.rm = TRUE)})
+tapply(act$steps, act$date, FUN = function (x) {median(x[x>0], na.rm = TRUE)})
+```
 
 ## What is the average daily activity pattern?
+```{r}
+# Time series plot of the average number of steps taken
+y <- tapply(act$steps, act$interval, FUN = mean, na.rm = TRUE)
+x <- unique(act$interval)
 
+plot(x, y, type = "l")
 
+# The 5-minute interval that, on average, contains the maximum number of steps
+y[which.max(y)]
+```
 
 ## Imputing missing values
+```{r}
+# First, calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+sum(is.na(act$steps))
+#Then, convert steps from integer to double
+act$steps <- as.numeric(as.factor(act$steps))
 
+#Create a function to replace NAs
+impute.mean <- function (x) {replace(x, is.na(x), mean(x, na.rm = TRUE))}
 
+#Use the library data.table and the function impute.mean just created
+require(data.table)
+setDT(act)
+act_new <- act[,steps := impute.mean(steps), by = interval]
+# view new data.set
+head(act_new)
+
+# Histogram of the total number of steps taken each day after missing values are imputed
+hist(tapply(act$steps, act$date, FUN = sum), main="Number of steps", xlab="Steps", las=1, breaks = 10)
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+# Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+#First, convert to date
+act_new$date <- as.Date(act_new$date)
+#create a factor of weekdays
+weekdays1 <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+act_new$wDay <- factor((weekdays(act_new$date) %in% weekdays1))
+act_new$wDay <- factor((weekdays(act_new$date) %in% weekdays1), levels = c(FALSE, TRUE), labels = c("weekend", "weekday"))
+
+#include lattice library
+require(lattice)
+z<- aggregate(steps ~ interval + wDay, FUN = mean, data = act_new, na.rm = TRUE)
+xyplot(z$steps ~ z$interval|z$wDay, type = "l", xlab = "5-minute interval", ylab = "Number of steps", layout = c(1,2))
+```
